@@ -7,6 +7,7 @@ Numpy solution of a partial differential equation for the problem of elasticity 
 
 import numpy as np
 import scipy.linalg as spl
+import matplotlib.pyplot as plt
 
 # Scaled variables
 L = 1; W = 0.2
@@ -17,15 +18,15 @@ gamma = 0.4*delta**2
 beta = 1.25
 lambda_ = beta
 g = gamma
-x_shape = 11
-y_shape = 3 
-z_shape = 3
+x_shape = 10
+y_shape = 4 
+z_shape = 4
 delta_x = L/(x_shape-1)
 delta_y = W/(y_shape-1)
 delta_z = W/(z_shape-1)
 f  = np.array((0, 0, -rho*g))
 ksi = 0
-global_epsilon = 1e-2
+global_epsilon = 59
 step = 1e-3
 
 '''
@@ -61,43 +62,62 @@ Dx = np.array([[-1, 0, 0, 1, 0, 0],
                [0, -1, 0, 0, 1, 0],
                [0, 0, 0, 0, 0, 0],
                [0, 0, -1, 0, 0, 1]])/delta_x
-Dy = np.array([[0, 0, 0, 0, 0, 0],
-               [0, -1, 0, 0, 1, 0],
-               [0, 0, 0, 0, 0, 0],
-               [-1, 0, 0, 1, 0, 0],
-               [0, 0, -1, 0, 0, 1],
-               [0, 0, 0, 0, 0, 0]])/delta_y
-Dz = np.array([[0, 0, 0, 0, 0, 0],
-               [0, 0, 0, 0, 0, 0],
-               [0, 0, -1, 0, 0, 1],
-               [0, 0, 0, 0, 0, 0],
-               [0, -1, 0, 0, 1, 0],
-               [-1, 0, 0, 1, 0, 0]])/delta_z
-D = np.block([Dx+Dy+Dz, np.zeros((6, 3*(x_shape*y_shape*z_shape - 2)))])
+Dy0 = np.array([[0, 0, 0],
+               [0, -1, 0],
+               [0, 0, 0],
+               [-1, 0, 0],
+               [0, 0, -1],
+               [0, 0, 0]])/delta_y
+Dy1 = np.array([[0, 0, 0],
+               [0, 1, 0],
+               [0, 0, 0],
+               [1, 0, 0],
+               [0, 0, 1],
+               [0, 0, 0]])/delta_y
+Dy = np.block([Dy0, np.zeros((6, 3*(x_shape-1))), Dy1])
+Dz0 = np.array([[0, 0, 0],
+               [0, 0, 0],
+               [0, 0, -1],
+               [0, 0, 0],
+               [0, -1, 0],
+               [-1, 0, 0]])/delta_z
+Dz1 = np.array([[0, 0, 0],
+               [0, 0, 0],
+               [0, 0, 1],
+               [0, 0, 0],
+               [0, 1, 0],
+               [1, 0, 0]])/delta_z
+Dz = np.block([Dz0, np.zeros((6, 3*(x_shape*y_shape-1))), Dz1])
+D = np.block([Dx, np.zeros((6, 3*(x_shape*y_shape*z_shape - 2)))]) + np.block([Dy, np.zeros((6, 3*(x_shape*(y_shape*z_shape-1) - 1)))]) + np.block([Dz, np.zeros((6, 3*(x_shape*y_shape*(z_shape-1) - 1)))])
 for i in range(1, x_shape*y_shape*z_shape):
-    kx, ky, kz = i%x_shape, i%y_shape, i%z_shape
+    kx, ky, kz = i%x_shape, i%(x_shape*y_shape), i%(x_shape*y_shape*z_shape)
     if kx == 0:
         D_x = np.block([np.zeros((6, 3*(i-1) + 3)), Dx, np.zeros((6, 3*(x_shape*y_shape*z_shape - (i-1) - 3)))])
     else:
         D_x = np.block([np.zeros((6, 3*(i-1))), Dx, np.zeros((6, 3*(x_shape*y_shape*z_shape - (i-1) - 2)))])
-    if ky == 0:
-        D_y = np.block([np.zeros((6, 3*(i-1) + 3)), Dy, np.zeros((6, 3*(x_shape*y_shape*z_shape - (i-1) - 3)))])
+    if ky < x_shape:
+        D_y = np.block([np.zeros((6, 3*i)), Dy, np.zeros((6, 3*(x_shape*y_shape*z_shape - i - 1 - x_shape)))])
     else:
-        D_y = np.block([np.zeros((6, 3*(i-1))), Dy, np.zeros((6, 3*(x_shape*y_shape*z_shape - (i-1) - 2)))])
-    if kz == 0:
-        D_z = np.block([np.zeros((6, 3*(i-1) + 3)), Dz, np.zeros((6, 3*(x_shape*y_shape*z_shape - (i-1) - 3)))])
+        D_y = np.block([np.zeros((6, 3*(i - x_shape))), Dy, np.zeros((6, 3*(x_shape*y_shape*z_shape - (i-x_shape) - 1 - x_shape)))])
+    if kz < x_shape*y_shape:
+        D_z = np.block([np.zeros((6, 3*i)), Dz, np.zeros((6, 3*(x_shape*y_shape*z_shape - i - 1 - x_shape*y_shape)))])
     else:
-        D_z = np.block([np.zeros((6, 3*(i-1))), Dz, np.zeros((6, 3*(x_shape*y_shape*z_shape - (i-1) - 2)))])
+        D_z = np.block([np.zeros((6, 3*(i-x_shape*y_shape))), Dz, np.zeros((6, 3*(x_shape*y_shape*z_shape - (i-x_shape*y_shape) - 1 - x_shape*y_shape)))])
     D = np.block([[D],
                   [D_x+D_y+D_z]])
-f_ = np.array(f)
+    
+n = f*(1 - x_shape)*y_shape*z_shape
+f_ = np.array(n)
 for i in range(x_shape*y_shape*z_shape - 1):
-    f = np.block([f_, f])
+    if (i+1)%x_shape == 0:
+        f_ = np.block([f_, n])
+    else:
+        f_ = np.block([f_, f])
+f = f_
    
 C = 2*np.dot(f.T, D.T)
 C = np.dot(C,E)
 C = np.dot(C,D) #2*f^T * D^T * E * D #
-print(np.min(E), np.max(E))
 
 A = 2*np.dot(D, D.T)
 A = np.dot(A, E)
@@ -117,10 +137,15 @@ for i in range(x_shape*y_shape*z_shape):
         K[3*i][3*i] = 1
         K[3*i+1][3*i+1] = 1
         K[3*i+2][3*i+2] = 1
+        
+K_ = np.eye(3*x_shape*y_shape*z_shape)
+for i in range(x_shape*y_shape*z_shape):
+    if i%x_shape == 0:
+        K_[3*i][3*i] = 0
+        K_[3*i+1][3*i+1] = 0
+        K_[3*i+2][3*i+2] = 0
 
 I = np.dot(K.T, K) #K^T * K
-
-print('V: ', B)
     
 '''
 
@@ -147,11 +172,11 @@ K^T * K will be called I; D * D^T will be called U;  f^T * f will be called F; 2
 '''
     
 def gradient(u):
-    return np.dot(sigma(u).T, A) + C + 2*ksi*np.dot(u.T, I)
+    return np.dot(sigma(u).T, A) + C# + 2*ksi*np.dot(u.T, I)
 
 def cost(u):
     sig = sigma(u)
-    return F + np.dot(np.dot(sig.T, U) + V, sig) + ksi*np.dot(np.dot(u.T,I), u)
+    return F + np.dot(np.dot(sig.T, U) + V, sig)# + ksi*np.dot(np.dot(u.T,I), u)
 
 '''
 
@@ -165,32 +190,34 @@ def gradient_descent(u):
     value = cost(u)
     grad = grad/np.linalg.norm(grad)
     print(value)
+    i = 0
     while abs(value) > global_epsilon:
-        descent_step *= 0.99
-        u = u - descent_step*grad
+        i+= 1
+        descent_step = step/np.log(i+1)
+        u = np.dot(K_,u - descent_step*grad)
         grad = gradient(u)
         grad = grad/np.linalg.norm(grad)
         value = cost(u)
-        print(value, np.dot(u.T,u))
+        print(value)
 
     return u
     
     
 u = np.zeros(3*x_shape*y_shape*z_shape)
 u = gradient_descent(u)
-ix = np.arange(0,x_shape*y_shape*z_shape - 2,3)
-iy = np.arange(1,x_shape*y_shape*z_shape - 1,3)
-iz = np.arange(2,x_shape*y_shape*z_shape,3)
+ix = np.arange(0,3*x_shape*y_shape*z_shape - 2,3)
+iy = np.arange(1,3*x_shape*y_shape*z_shape - 1,3)
+iz = np.arange(2,3*x_shape*y_shape*z_shape,3)
 ux = u[ix]
 uy = u[iy]
 uz = u[iz]
 magnitude_u = np.sqrt(ux**2 + uy**2 + uz**2)
-print(np.min(magnitude_u), np.max(magnitude_u))
-print(magnitude_u)
+print('min/max: ', np.min(magnitude_u), np.max(magnitude_u))
+print('magnitude_u: ',magnitude_u)
+print('u_z: ', uz)
+
     
-    
-    
-    
+
     
     
     
