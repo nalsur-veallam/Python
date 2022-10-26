@@ -1,7 +1,7 @@
 import numpy as np
 import pylab as plt
 
-# O(d1^2 + d2^4)
+# O(d1^2*d2^4)
 
 d1 = 10
 d2 = 8
@@ -45,9 +45,10 @@ plt.ylabel('Truncation error')
 plt.grid()
 plt.show()
 
-plt.plot(np.arange(2, 6), errors[1:5], lw=3, c='g')
+plt.plot(np.arange(1, max_rank), errors, lw=3, c='g')
 plt.xlabel('rank')
 plt.ylabel('Truncation error')
+plt.yscale('log')
 plt.grid()
 plt.show()
     
